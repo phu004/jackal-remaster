@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jackal Remaster</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #090b06; overflow: hidden; } /* (the bars round the game view) */
+  #frame { position: fixed; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background: #e8b877; transform: translateZ(0); } /* transform: its position:fixed HUD is placed within it */
+  canvas { display: block; width: 100%; height: 100%; }
+  .hud { position: fixed; font: 700 16px/1.3 "Courier New", monospace; color: #fff; text-shadow: 2px 2px 0 #000; pointer-events: none; }
+  #loading, #clear, #pause, #gameover, .hud { zoom: var(--ui, 1); } /* small screens (a phone on its side): the menus and text shrink with the screen's height, see game/ui-scale.js */
+  #top { left: 16px; top: 12px; }
+  #fly { left: 0; right: 0; top: 12px; text-align: center; color: #9ff; }
+  #gameover { left: 0; right: 0; top: 40%; text-align: center; font-size: 42px; color: #ff5a3a; }
+  /* stage results: the game blurred behind a panel of stats and a button on to the next stage */
+  #clear { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(7px) brightness(.86); -webkit-backdrop-filter: blur(7px) brightness(.86); background: rgba(10,12,6,.1);
+    font: 700 18px/1.3 "Courier New", monospace; color: #fff; opacity: 0; transition: opacity .8s ease; }
+  #clear.show { opacity: 1; }
+  #clear[hidden] { display: none; }
+  #clear .panel { min-width: min(440px, 86vw); padding: 30px 36px 26px; text-align: center;
+    background: rgba(20,24,12,.72); border: 3px solid #e8b877; box-shadow: 0 0 0 3px #0b0e06, 0 18px 50px rgba(0,0,0,.55); }
+  #clear h1 { margin: 0 0 22px; font: 900 44px/1 Impact, "Arial Black", sans-serif; letter-spacing: .08em; color: #ffe060;
+    text-shadow: 0 3px 0 #7a4a10, 0 6px 14px rgba(0,0,0,.6); }
+  #clear .row { display: flex; justify-content: space-between; gap: 24px; padding: 7px 2px; border-bottom: 1px dashed rgba(232,184,119,.35);
+    text-shadow: 2px 2px 0 #000; opacity: 0; transform: translateY(6px); transition: opacity .35s, transform .35s; }
+  #clear .row.in { opacity: 1; transform: none; }
+  #clear .row[hidden] { display: none; }
+  #clear .row b { color: #ffe060; }
+  #clear .row.total { border-bottom: 0; margin-top: 6px; font-size: 24px; }
+  #clear .row small { color: #b8b8a0; font-size: 13px; }
+  #clear button { margin-top: 26px; padding: 12px 30px; font: 900 20px/1 Impact, "Arial Black", sans-serif; letter-spacing: .12em;
+    color: #1a1406; background: #e8b877; border: 0; box-shadow: 0 4px 0 #7a4a10; cursor: pointer; opacity: 0; transition: opacity .4s, transform .1s; }
+  #clear button.in { opacity: 1; }
+  #clear .more { margin-top: 22px; font: 900 22px/1 Impact, "Arial Black", sans-serif; letter-spacing: .14em; color: #ffe060; text-shadow: 0 2px 0 #7a4a10; opacity: 0; transition: opacity .5s; }
+  #clear .more.in { opacity: 1; }
+  #clear .more[hidden], #clear button[hidden] { display: none; }
+  #clear button:hover { background: #ffd08a; }
+  #clear button:active { transform: translateY(3px); box-shadow: 0 1px 0 #7a4a10; }
+  #gameover button { pointer-events: auto; margin-top: 14px; min-width: 340px; padding: 12px 30px; font: 900 20px/1 Impact, "Arial Black", sans-serif; letter-spacing: .12em;
+    color: #1a1406; background: #e8b877; border: 0; box-shadow: 0 4px 0 #7a4a10; cursor: pointer; text-shadow: none; }
+  #gameover button:hover, #gameover button:focus-visible { background: #ffd08a; }
+  #gameover button:focus-visible { outline: 3px solid #fff3c4; outline-offset: 3px; }
+  #gameover button:active { transform: translateY(3px); box-shadow: 0 1px 0 #7a4a10; }
+  @keyframes blink { 50% { opacity: 0; } }
+  /* loading screen: shown until the stage is built and drawing (only transform / opacity animate,
+     so it keeps moving while the page is busy building the stage) */
+  #loading { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 40%, #2a3319 0%, #141a0c 55%, #090b06 100%);
+    font: 700 16px/1.3 "Courier New", monospace; color: #e8dcb8; transition: opacity .7s ease; }
+  #loading.done { opacity: 0; pointer-events: none; }
+  #loading .title { font: 900 clamp(56px, 12vw, 120px)/1 Impact, "Arial Black", sans-serif; letter-spacing: .08em; color: #e8b877;
+    text-shadow: 0 4px 0 #6a3a14, 0 8px 18px rgba(0,0,0,.6); }
+  #loading .sub { margin-top: 6px; letter-spacing: .6em; font-size: 14px; color: #a8b47a; }
+  #loading .bar { position: relative; width: 280px; max-width: 70vw; height: 10px; margin-top: 60px; overflow: hidden;
+    border: 2px solid #e8b877; box-shadow: 0 0 0 2px #090b06; }
+  /* the fill slides in (a transform, so it keeps creeping while the page is busy building): see loading.js */
+  #loading .bar .fill { position: absolute; inset: 0; transform: translateX(-100%);
+    background: repeating-linear-gradient(-45deg, #e8b877 0 8px, #c88a3a 8px 16px); }
+  #loading .status[hidden], #pause h2 { display: none; }
+  #loading .status { margin-top: 12px; font-size: 13px; letter-spacing: .25em; opacity: .85; }
+  #loading .status::after { content: "..."; display: inline-block; width: 3ch; text-align: left; animation: dots 1.2s steps(4) infinite;
+    clip-path: inset(0 100% 0 0); }
+  @keyframes dots { to { clip-path: inset(0 -1ch 0 0); } }
+  #loading .status.still::after { display: none; }
+  #loading .choice { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 22px; width: min(320px, 80vw); }
+  #loading .choice .list { display: flex; flex-direction: column; gap: 10px; }
+  #loading .choice button[hidden] { display: none; }
+  #loading .choice button:focus-visible, #loading .slots button:focus-visible { outline: 3px solid #fff3c4; outline-offset: 3px; }
+  #loading .controls { display: grid; grid-template-columns: auto auto; gap: 8px 22px; margin: 0 0 8px; font-size: 14px; letter-spacing: .08em; }
+  #loading .keymap { grid-template-columns: 1fr auto auto; align-items: center; gap: 6px 8px; }
+  #loading .keymap button { min-width: 96px; margin: 0; padding: 7px 10px; font-size: 14px; }
+  #loading .keymap button.waiting { background: #ffe060; }
+  #loading .keymap .fixed { grid-column: span 2; }
+  #loading .keyhint { margin: 0 0 8px; font-size: 11px; }
+  #loading .controls dt { color: #a8b47a; } #loading .controls dd { margin: 0; text-align: right; color: #e8dcb8; }
+  #loading .choice[hidden] { display: none; }
+  #loading .choice button { padding: 11px 22px; font: 900 18px/1 Impact, "Arial Black", sans-serif; letter-spacing: .1em; white-space: pre;
+    color: #1a1406; background: #e8b877; border: 0; box-shadow: 0 4px 0 #7a4a10; cursor: pointer; }
+  #loading .choice button:hover { background: #ffd08a; }
+  #loading .choice button:active { transform: translateY(3px); box-shadow: 0 1px 0 #7a4a10; }
+  #loading button[hidden] { display: none !important; }
+  /* BACK buttons everywhere (title and pause menus): one quiet secondary style, the full width of the list above it, set off from it, with a small arrow */
+  #loading .choice .back, #loading .slots .back, #pause .slots > button[data-act="back"], #pause .gfx > button[data-act="back"], #pause .gfx-actions > button[data-act="back"] { display: block; align-self: stretch; box-sizing: border-box; width: 100%; margin-top: 10px; padding: 10px 18px;
+    font-size: 16px; letter-spacing: .16em; text-align: center; color: #d8cfa8; background: rgba(90,96,64,.28); border: 2px solid #5a6040; box-shadow: none; }
+  #loading .choice .back::before, #loading .slots .back::before, #pause button[data-act="back"]::before { content: "◀"; margin-right: .7em; font-size: .8em; opacity: .85; }
+  #loading .choice .back:hover, #loading .slots .back:hover, #pause .slots > button[data-act="back"]:hover, #pause .gfx > button[data-act="back"]:hover, #pause .gfx-actions > button[data-act="back"]:hover { color: #fff; background: rgba(110,118,80,.55); border-color: #8a9460; }
+  #loading .choice .back:active, #loading .slots .back:active, #pause button[data-act="back"]:active { transform: translateY(2px); box-shadow: none; }
+  .vol { display: flex; align-items: center; gap: 12px; color: #e8dcb8; font: inherit; padding: 6px 4px; }
+  .vol .vol-slider { flex: 1; min-width: 120px; accent-color: #a8b070; }
+  .vol .vol-val { min-width: 3.2em; text-align: right; }
+  #loading .choice .back, #loading .slots .back, #load-graphics, #load-volume, #load-fullscreen, #load-controls { background: #5a6040; color: #e8dcb8; box-shadow: 0 4px 0 #23260f; }
+  #loading .choice .back:hover, #loading .slots .back:hover, #load-graphics:hover, #load-volume:hover, #load-fullscreen:hover, #load-controls:hover { background: #6e7650; }
+  #loading .bar[hidden] { display: none; }
+  /* graphics level lists (title and pause menus): the level in use is lit */
+  /* APPLY and BACK on one row, side by side (the graphics menus) */
+  .gfx-actions { display: flex; gap: 10px; margin-top: 10px; }
+  #loading #menu-graphics .gfx-actions > button, #pause .gfx-actions > button, #pause .gfx-actions > button[data-act="back"] { flex: 1 1 0; width: auto; margin-top: 0; }
+  .gfx-desc { margin: -4px 0 4px; padding: 8px 12px 9px; font: 700 13px/1.45 "Courier New", monospace; letter-spacing: .02em; text-align: left; color: #d8cfa8; background: rgba(232,184,119,.1); border-left: 4px solid #e8b877; }
+  #menu-graphics .list button.sel, #pause .gfx .menu button.sel { outline: 3px solid #fff3c4; outline-offset: 2px; }
+  #loading .choice button:disabled, #pause .gfx > button:disabled, #pause .gfx-actions > button:disabled { opacity: .45; cursor: default; transform: none; }
+  #menu-graphics .list button.on, #pause .gfx .menu button.on { background: #ffe060; box-shadow: 0 4px 0 #7a4a10, inset 0 0 0 3px #7a4a10; }
+  #pause .gfx[hidden] { display: none; }
+  #pause .gfx .menu { margin-bottom: 14px; }
+  /* touch controls (touch.js): a floating stick on the left half, GUN / GRENADE on the right, pause top right */
+  #touch { position: fixed; inset: 0; z-index: 4; pointer-events: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #touch .t-stick-zone { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; pointer-events: auto; touch-action: none; }
+  #touch .t-stick { position: absolute; width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%;
+    border: 3px solid rgba(232,184,119,.55); background: rgba(10,12,6,.25); pointer-events: none; }
+  #touch .t-stick[hidden] { display: none; }
+  #touch .t-knob { position: absolute; left: 36px; top: 36px; width: 56px; height: 56px; border-radius: 50%; background: rgba(232,184,119,.75); box-shadow: 0 0 0 3px rgba(10,12,6,.4); }
+  #touch .t-btn, #touch .t-pause { position: absolute; pointer-events: auto; touch-action: none; border: 3px solid rgba(255,243,196,.6); border-radius: 50%;
+    font: 900 13px/1 Impact, "Arial Black", sans-serif; letter-spacing: .08em; color: #1a1406; background: rgba(232,184,119,.7); box-shadow: 0 0 0 3px rgba(10,12,6,.35); }
+  #touch .t-btn.down { background: rgba(255,208,138,.95); transform: scale(.94); }
+  #touch .t-gun { right: calc(28px + env(safe-area-inset-right, 0px)); bottom: calc(34px + env(safe-area-inset-bottom, 0px)); width: 92px; height: 92px; font-size: 16px; }
+  #touch .t-grenade { right: calc(132px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 76px; height: 76px; }
+  #touch .t-pause { right: calc(16px + env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); width: 46px; height: 46px; font-size: 16px; border-radius: 10px; }
+  body.touching a.hud { display: none; } /* (keyboard hints) */
+  html, body { touch-action: none; } /* no page scrolling or zooming while playing */
+  /* pause menu (Esc) and the save slots (shared with the title screen) */
+  #pause { position: fixed; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(6px) brightness(.84); -webkit-backdrop-filter: blur(6px) brightness(.84); background: rgba(10,12,6,.1);
+    font: 700 16px/1.3 "Courier New", monospace; color: #fff; }
+  #pause[hidden] { display: none; }
+  #pause .panel { width: min(520px, 90vw); padding: 26px 30px 22px; text-align: center; background: rgba(20,24,12,.78);
+    border: 3px solid #e8b877; box-shadow: 0 0 0 3px #0b0e06, 0 18px 50px rgba(0,0,0,.55); }
+  #pause h1 { margin: 0 0 18px; font: 900 40px/1 Impact, "Arial Black", sans-serif; letter-spacing: .1em; color: #ffe060;
+    text-shadow: 0 3px 0 #7a4a10, 0 6px 14px rgba(0,0,0,.6); }
+  #pause h2 { margin: 0 0 12px; font: 900 22px/1 Impact, "Arial Black", sans-serif; letter-spacing: .1em; color: #e8b877; }
+  #pause .menu { display: flex; flex-direction: column; gap: 10px; }
+  #pause .menu[hidden], #pause .slots[hidden], #loading .slots[hidden] { display: none; }
+  .menu-btn, #pause .menu button, #pause .slots > button, #pause .gfx > button, #pause .gfx-actions > button, #loading .slots > button { padding: 11px 18px; font: 900 18px/1 Impact, "Arial Black", sans-serif;
+    letter-spacing: .12em; color: #1a1406; background: #e8b877; border: 0; box-shadow: 0 4px 0 #7a4a10; cursor: pointer; }
+  #pause .menu button:hover, #pause .slots > button:hover, #pause .gfx > button:hover, #pause .gfx-actions > button:hover, #loading .slots > button:hover { background: #ffd08a; }
+  #pause .menu button:active, #pause .slots > button:active, #pause .gfx > button:active, #pause .gfx-actions > button:active { transform: translateY(3px); box-shadow: 0 1px 0 #7a4a10; }
+  #pause .menu button:disabled { opacity: .45; cursor: default; background: #e8b877; transform: none; box-shadow: 0 4px 0 #7a4a10; } /* e.g. SAVE GAME during a boss fight */
+  .slot-list { display: grid; gap: 8px; margin-bottom: 14px; text-align: left; }
+  .slot { display: grid; grid-template-columns: 74px 1fr; grid-template-rows: auto auto; column-gap: 12px; padding: 9px 12px; cursor: pointer;
+    font: 700 14px/1.3 "Courier New", monospace; color: #fff; background: rgba(232,184,119,.12); border: 2px solid rgba(232,184,119,.45); text-align: left; }
+  .slot b { grid-row: span 2; align-self: center; color: #ffe060; font-size: 15px; }
+  .slot small { color: #b8b8a0; font-size: 12px; }
+  .slot:hover:not(:disabled) { background: rgba(232,184,119,.25); border-color: #e8b877; }
+  .slot.empty span { color: #8a8a78; }
+  .slot:disabled { opacity: .45; cursor: default; }
+  .slot.confirm { border-color: #ff7a4a; background: rgba(255,120,70,.2); }
+  .slot.confirm small { color: #ffb090; }
+  #pause .note { min-height: 1.3em; margin-top: 12px; color: #a8e070; font-size: 14px; }
+  #loading .slots { width: min(520px, 90vw); margin-top: 22px; }
+  .slot span { color: #fff; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name-entry { display: grid; gap: 12px; padding: 14px; text-align: left; background: rgba(232,184,119,.1); border: 2px solid #e8b877; }
+  .name-entry label { color: #ffe060; font: 900 16px/1.2 Impact, "Arial Black", sans-serif; letter-spacing: .1em; }
+  .name-entry label small { color: #ffb090; font: 700 12px "Courier New", monospace; letter-spacing: 0; }
+  .name-entry input { padding: 10px 12px; font: 700 18px "Courier New", monospace; color: #fff; background: #0f1208; border: 2px solid #8a7a50; outline: none; }
+  .name-entry input:focus { border-color: #ffe060; }
+  .name-entry div { display: flex; gap: 10px; }
+  .name-entry button { flex: 1; padding: 10px; font: 900 16px/1 Impact, "Arial Black", sans-serif; letter-spacing: .12em; border: 0; cursor: pointer;
+    color: #1a1406; background: #e8b877; box-shadow: 0 3px 0 #7a4a10; }
+  .name-entry button.cancel { color: #e8dcb8; background: #5a6040; box-shadow: 0 3px 0 #23260f; }
+  a.hud { right: 16px; bottom: 12px; font-size: 12px; pointer-events: auto; }
+</style>
+  <script type="module" crossorigin src="./assets/game-CVo1yWAQ.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/modulepreload-polyfill-B5Qt9EMX.js">
+</head>
+<body>
+<div id="frame"><!-- the game view: a fixed 16:9 box, centred, with bars round it (see resize in main.js) -->
+<canvas id="c"></canvas>
+<div class="hud" id="top">1P&nbsp;&nbsp;<span id="score">0</span>&nbsp;&nbsp;&nbsp;<span data-tr="JEEP">JEEP</span> x<span id="lives">4</span>&nbsp;&nbsp;&nbsp;<span data-tr="POW">POW</span> <span id="pows">0</span>&nbsp;&nbsp;&nbsp;<span id="weapon" data-tr="GRENADE">GRENADE</span></div>
+<div class="hud" id="gameover" hidden>GAME OVER<br><button id="retry" data-tr="RETRY FROM STAGE START">RETRY FROM STAGE START</button><br><button id="to-menu" data-tr="MAIN MENU">MAIN MENU</button></div>
+<div class="hud" id="fly" hidden>FLY MODE &nbsp; WASD: PAN &nbsp; SHIFT: FAST &nbsp; WHEEL: ZOOM &nbsp; F: DROP JEEP HERE</div>
+<a class="hud" href="viewer.html">ASSET VIEWER</a>
+<a class="hud" href="bench.html" style="bottom:32px">BENCHMARK</a>
+</div>
+<div id="loading">
+  <div class="title" data-tr="JACKAL">JACKAL</div>
+  <div class="sub" data-tr="REMASTER">REMASTER</div>
+  <div class="bar"><div class="fill"></div></div>
+  <div class="status">LOADING</div>
+  <div class="choice" id="menu-main" hidden>
+    <button id="load-new" data-tr="NEW GAME">NEW GAME</button>
+    <button id="load-slots" data-tr="LOAD GAME" hidden>LOAD GAME</button>
+    <button id="load-settings" data-tr="SETTINGS">SETTINGS</button>
+  </div>
+  <div class="choice" id="menu-settings" hidden>
+    <button id="load-graphics">GRAPHICS: ULTRA</button>
+    <button id="load-volume" data-tr="VOLUME">VOLUME</button>
+    <button id="load-fullscreen">FULL SCREEN</button>
+    <button id="load-controls" data-tr="CONTROLS">CONTROLS</button>
+    <button class="back" data-tr="BACK">BACK</button>
+  </div>
+  <div class="choice" id="menu-volume" hidden>
+    <label class="vol"><span data-tr="VOLUME">VOLUME</span><input type="range" min="0" max="100" step="5" class="vol-slider"><b class="vol-val"></b></label>
+    <button class="back" data-tr="BACK">BACK</button>
+  </div>
+  <div class="choice" id="menu-stages" hidden><div class="list"></div><button class="back" data-tr="BACK">BACK</button></div>
+  <div class="choice" id="menu-graphics" hidden><div class="list"></div><button class="back" data-tr="BACK">BACK</button></div>
+  <div class="choice" id="menu-controls" hidden>
+    <dl class="controls keymap"></dl>
+    <p class="gfx-desc keyhint" data-tr="CLICK A KEY TO CHANGE IT. ESC CANCELS, BACKSPACE CLEARS.">CLICK A KEY TO CHANGE IT. ESC CANCELS, BACKSPACE CLEARS.</p>
+    <button id="keys-reset" data-tr="RESET TO DEFAULT">RESET TO DEFAULT</button>
+    <button class="back" data-tr="BACK">BACK</button>
+  </div>
+  <div class="slots" hidden><div class="slot-list"></div><button class="back" data-tr="BACK">BACK</button></div>
+</div>
+<div id="clear" hidden>
+  <div class="panel">
+    <h1 id="r-title">STAGE 1 CLEAR</h1>
+    <div class="row"><span data-tr="KILL RATE">KILL RATE</span><b><span id="r-kill">0%</span> <small id="r-kills"></small></b></div>
+    <div class="row"><span data-tr="POWS RESCUED">POWS RESCUED</span><b id="r-pows">0</b></div>
+    <div class="row"><span data-tr="TIME">TIME</span><b id="r-time">0:00</b></div>
+    <div class="row"><span data-tr="TOTAL TIME">TOTAL TIME</span><b id="r-total">0:00</b></div>
+    <div class="row"><span data-tr="SECRETS FOUND">SECRETS FOUND</span><b id="r-secrets">0 / 0</b></div>
+    <div class="row"><span data-tr="STAGE BONUS">STAGE BONUS</span><b id="r-bonus">0</b></div>
+    <div class="row total"><span data-tr="TOTAL SCORE">TOTAL SCORE</span><b id="r-score">0</b></div>
+    <button id="next" data-tr="NEXT STAGE ▶">NEXT STAGE &#9654;</button>
+    <div id="more" class="more" data-tr="MORE STAGES COMING" hidden>MORE STAGES COMING</div>
+    <button id="clear-menu" data-tr="MAIN MENU" hidden>MAIN MENU</button>
+  </div>
+</div>
+<div id="pause" hidden>
+  <div class="panel">
+    <h1 data-tr="PAUSED">PAUSED</h1>
+    <div class="menu">
+      <button data-act="resume" data-tr="RESUME">RESUME</button>
+      <button data-act="save">SAVE GAME</button>
+      <button data-act="load" data-tr="LOAD GAME">LOAD GAME</button>
+      <button data-act="settings" data-tr="SETTINGS">SETTINGS</button>
+      <button data-act="retry" data-tr="RETRY FROM STAGE START">RETRY FROM STAGE START</button>
+      <button data-act="quit" data-tr="QUIT TO TITLE">QUIT TO TITLE</button>
+    </div>
+    <div class="menu settings" hidden>
+      <button data-act="graphics">GRAPHICS: ULTRA</button>
+      <button data-act="volume" data-tr="VOLUME">VOLUME</button>
+      <button data-act="fullscreen">FULL SCREEN</button>
+      <button data-act="back-settings" data-tr="BACK">BACK</button>
+    </div>
+    <div class="menu volume" hidden>
+      <label class="vol"><span data-tr="VOLUME">VOLUME</span><input type="range" min="0" max="100" step="5" class="vol-slider"><b class="vol-val"></b></label>
+      <button data-act="back" data-tr="BACK">BACK</button>
+    </div>
+    <div class="slots" hidden><h2></h2><div class="slot-list"></div><button data-act="back" data-tr="BACK">BACK</button></div>
+    <div class="gfx" hidden><h2 data-tr="GRAPHICS">GRAPHICS</h2><div class="menu"></div><div class="gfx-actions"><button data-act="apply" data-tr="APPLY">APPLY</button><button data-act="back" data-tr="BACK">BACK</button></div></div>
+    <div class="note"></div>
+  </div>
+</div>
+</body>
+</html>
