@@ -1,1 +1,0 @@
-import{S as n}from"./soft-shadows-DYCp1T5a.js";const i="RE_Direct( directLight, geometry, material, reflectedLight );",t=n.lights_fragment_begin,r=t.indexOf("NUM_POINT_LIGHTS"),e=t.indexOf(i,r),s=r>=0&&e>=0&&t.indexOf("NUM_SPOT_LIGHTS")>e?t.slice(0,e)+"if ( directLight.visible ) "+i+t.slice(e+i.length):t;n.lights_fragment_begin=s;export{s as C,t as S};
