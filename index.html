@@ -92,6 +92,8 @@
   #loading .keymap button { min-width: 96px; margin: 0; padding: 7px 10px; font-size: 14px; }
   #loading .keymap button.waiting { background: #ffe060; }
   #loading .keymap .fixed { grid-column: span 2; }
+  #loading .keymap .head { grid-column: auto; text-align: center; color: #ffe060; }
+  #loading #players-keys { margin: 0; white-space: pre; text-align: center; } #loading #players-keys[hidden] { display: none; }
   #loading .keyhint { margin: 0 0 8px; font-size: 11px; }
   #loading .controls dt { color: #a8b47a; } #loading .controls dd { margin: 0; text-align: right; color: #e8dcb8; }
   #loading .choice[hidden] { display: none; }
@@ -179,7 +181,7 @@
   .name-entry button.cancel { color: #e8dcb8; background: #5a6040; box-shadow: 0 3px 0 #23260f; }
   a.hud { right: 16px; bottom: 12px; font-size: 12px; pointer-events: auto; }
 </style>
-  <script type="module" crossorigin src="./assets/game-DrLhgtLt.js"></script>
+  <script type="module" crossorigin src="./assets/game-BotAQ2q7.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/modulepreload-polyfill-B5Qt9EMX.js">
 </head>
 <body>
@@ -188,7 +190,7 @@
 <div id="p2arrow" hidden><div class="tri"></div><span>2P</span></div><!-- an arrow on the edge of the view pointing to the AI partner when it is off the screen (main.js) -->
 <div class="hud" id="top">1P&nbsp;&nbsp;<span id="score">0</span>&nbsp;&nbsp;&nbsp;<span data-tr="JEEP">JEEP</span> x<span id="lives">4</span>&nbsp;&nbsp;&nbsp;<span data-tr="POW">POW</span> <span id="pows">0</span>&nbsp;&nbsp;&nbsp;<span id="weapon" data-tr="GRENADE">GRENADE</span></div>
 <div class="hud" id="top2" hidden>2P&nbsp;&nbsp;<span id="score2">0</span>&nbsp;&nbsp;&nbsp;<span data-tr="JEEP">JEEP</span> x<span id="lives2">30</span>&nbsp;&nbsp;&nbsp;<span data-tr="POW">POW</span> <span id="pows2">0</span>&nbsp;&nbsp;&nbsp;<span id="weapon2" data-tr="GRENADE">GRENADE</span></div>
-<div class="hud" id="gameover" hidden>GAME OVER<br><button id="retry" data-tr="RETRY FROM STAGE START">RETRY FROM STAGE START</button><br><button id="to-menu" data-tr="MAIN MENU">MAIN MENU</button></div>
+<div class="hud" id="gameover" hidden><span data-tr="GAME OVER">GAME OVER</span><br><button id="retry" data-tr="RETRY FROM STAGE START">RETRY FROM STAGE START</button><br><button id="to-menu" data-tr="MAIN MENU">MAIN MENU</button></div>
 <div class="hud" id="fly" hidden>FLY MODE &nbsp; WASD: PAN &nbsp; SHIFT: FAST &nbsp; WHEEL: ZOOM &nbsp; F: DROP JEEP HERE</div>
 <a class="hud dev-link" href="viewer.html" hidden>ASSET VIEWER</a>
 <a class="hud dev-link" href="bench.html" style="bottom:32px" hidden>BENCHMARK</a>
@@ -221,6 +223,8 @@
   <div class="choice" id="menu-players" hidden>
     <button id="players-1" data-tr="1 PLAYER">1 PLAYER</button>
     <button id="players-2" data-tr="2 PLAYERS (AI PARTNER)">2 PLAYERS (AI PARTNER)</button>
+    <button id="players-3" data-tr="2 PLAYERS (ONE KEYBOARD)">2 PLAYERS (ONE KEYBOARD)</button>
+    <p class="gfx-desc" id="players-keys"></p>
     <button class="back" data-tr="BACK">BACK</button>
   </div>
   <div class="choice" id="menu-stages" hidden><div class="list"></div><button class="back" data-tr="BACK">BACK</button></div>
@@ -228,6 +232,7 @@
   <div class="choice" id="menu-controls" hidden>
     <dl class="controls keymap"></dl>
     <p class="gfx-desc keyhint" data-tr="CLICK A KEY TO CHANGE IT. ESC CANCELS, BACKSPACE CLEARS.">CLICK A KEY TO CHANGE IT. ESC CANCELS, BACKSPACE CLEARS.</p>
+    <button id="keys-coop">2 PLAYER KEYS</button>
     <button id="keys-reset" data-tr="RESET TO DEFAULT">RESET TO DEFAULT</button>
     <button class="back" data-tr="BACK">BACK</button>
   </div>
